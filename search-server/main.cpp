@@ -135,8 +135,8 @@ private:
         for (const string& word : query_words) {
             if(documents_.count(word)) {
                 double having_word_documents = documents_.at(word).size();
-                for(const auto&[id, tfs] : documents_.at(word)) {
-                    relevant_documents[id] += (tfs * log(document_count_/having_word_documents));
+                for(const auto&[id, tf] : documents_.at(word)) {
+                    relevant_documents[id] += (tf * log(document_count_/having_word_documents));
                 }
             } 
         }
