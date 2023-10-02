@@ -57,6 +57,11 @@ struct Document {
     double relevance;
 };
 
+struct QueryWords {
+    set<string> plus_words;
+    set<string> minus_words;
+};
+
 class SearchServer {
 public:
     void SetStopWords(const string& text) {
@@ -67,15 +72,15 @@ public:
 
     void AddDocument(int document_id, const string& document) {
         const vector<string> words_of_document = SplitIntoWordsNoStop(document);
-        double size = words_of_document.size();
+        double unit_of_tf = 1./words_of_document.size();
         for(const string& word : words_of_document){
-            documents_[word][document_id] += 1./size;
+            documents_[word][document_id] += unit_of_tf;
         }
         document_count_++;
     }
 
     vector<Document> FindTopDocuments(const string& raw_query) const {
-        const set<string> query_words = ParseQuery(raw_query);
+        const set<string> query_words = ParseQuery(raw_query).plus_words;
         auto matched_documents = FindAllDocuments(query_words);
 
         sort(matched_documents.begin(), matched_documents.end(),
@@ -110,22 +115,21 @@ private:
         return words;
     }
 
-    set<string> ParseQuery(const string& text) const {
-        set<string> query_words;
-        set<string> minus_words;
+    QueryWords ParseQuery(const string& text) const {
+        QueryWords query_words;
         for (const string& word : SplitIntoWordsNoStop(text)) {
             if(word[0] == '-' ) {
-                minus_words.insert(word);
-            } else {    
-                query_words.insert(word);
-            }
-        }
-        for (const string& word : query_words) {        
-            if(minus_words.count("-"s + word)) {
-                query_words.erase(word);  
-            }
+                query_words.minus_words.insert(word);
+                continue; 
+            }  
+            query_words.plus_words.insert(word);
         }
         return query_words;
+    }
+
+    double ComputeIDF (const string& word) const {
+        double having_word_documents = documents_.at(word).size();
+        return log(document_count_/having_word_documents);
     }
 
     vector<Document> FindAllDocuments(const set<string>& query_words) const {
@@ -134,9 +138,9 @@ private:
         
         for (const string& word : query_words) {
             if(documents_.count(word)) {
-                double having_word_documents = documents_.at(word).size();
+                double idf = ComputeIDF(word);
                 for(const auto&[id, tf] : documents_.at(word)) {
-                    relevant_documents[id] += (tf * log(document_count_/having_word_documents));
+                    relevant_documents[id] += (tf * idf);
                 }
             } 
         }
