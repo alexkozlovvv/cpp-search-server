@@ -80,7 +80,7 @@ public:
     }
 
     vector<Document> FindTopDocuments(const string& raw_query) const {
-        const set<string> query_words = ParseQuery(raw_query).plus_words;
+        const QueryWords query_words = ParseQuery(raw_query);
         auto matched_documents = FindAllDocuments(query_words);
 
         sort(matched_documents.begin(), matched_documents.end(),
@@ -132,17 +132,26 @@ private:
         return log(document_count_/having_word_documents);
     }
 
-    vector<Document> FindAllDocuments(const set<string>& query_words) const {
+    vector<Document> FindAllDocuments(const QueryWords& query_words) const {
         vector<Document> output_documents;
         map<int, double> relevant_documents;
         
-        for (const string& word : query_words) {
+        for (const string& word : query_words.plus_words) {
             if(documents_.count(word)) {
                 double idf = ComputeIDF(word);
                 for(const auto&[id, tf] : documents_.at(word)) {
                     relevant_documents[id] += (tf * idf);
                 }
             } 
+        }
+
+        for (const string& word : query_words.minus_words) {
+            if (documents_.count(word) == 0) {
+                continue;
+            }
+            for (const auto [document_id, tf] : documents_.at(word)) {
+                relevant_documents.erase(document_id);
+            }
         }
 
         for(const auto& [id, relevant] : relevant_documents) {
@@ -173,3 +182,4 @@ int main() {
              << "relevance = "s << relevance << " }"s << endl;
     }
 }
+
