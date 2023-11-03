@@ -98,10 +98,9 @@ public:
     explicit SearchServer(const StringContainer& stop_words)
         : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) {
         
-        for (const string& stop_word : stop_words_) {   
-            if(FindSpecSymb(stop_word))
-                throw invalid_argument("стоп слово содержит специальный символ"s);
-        } 
+        if(any_of(stop_words_.cbegin(), stop_words_.cend(), FindSpecSymb)) {
+            throw invalid_argument("стоп слово содержит специальный символ"s);
+        }
     }
 
     explicit SearchServer(const string& stop_words_text)
@@ -127,6 +126,7 @@ public:
             word_to_document_freqs_[word][document_id] += inv_word_count;
         }
         documents_.emplace(document_id, DocumentData{ComputeAverageRating(ratings), status});
+        ids_in_order_of_addition_.push_back(document_id);
 
     }
 
@@ -197,12 +197,7 @@ public:
         if((index >= document_count) || (index < 0)) {
             throw out_of_range("индекс переданного документа выходит за пределы допустимого диапазона"s);
         } else {
-            int i = 0;
-            for(const auto& [key, value] : documents_) {
-                if(i == index) 
-                    return key;
-                i++;
-            }
+            return ids_in_order_of_addition_.at(index);
         }
         return INVALID_DOCUMENT_ID;
     }
@@ -217,6 +212,7 @@ private:
     const set<string> stop_words_;
     map<string, map<int, double>> word_to_document_freqs_;
     map<int, DocumentData> documents_;
+    vector<int> ids_in_order_of_addition_;
 
     bool IsStopWord(const string& word) const {
         return stop_words_.count(word) > 0;
@@ -249,15 +245,23 @@ private:
         bool is_stop;
     };
 
-    QueryWord ParseQueryWord(string text) const {
+    QueryWord ParseQueryWord(string word) const {
     
         bool is_minus = false;
-        
-        if (text[0] == '-') {
-            is_minus = true;
-            text = text.substr(1);
+
+        if((word[0] == '-') && (word[1] == '-')){
+            throw invalid_argument("наличие более чем одного минуса перед минус словом"s);
+        } else if (word == "-"s) {
+            throw invalid_argument("отсутствие текста после символа «минус» в поисковом запросе"s);
+        } else if (FindSpecSymb(word)) {
+            throw invalid_argument("в словах поискового запроса есть специальные символы"s);
         }
-        return {text, is_minus, IsStopWord(text)};
+        
+        if (word[0] == '-') {
+            is_minus = true;
+            word = word.substr(1);
+        }
+        return {word, is_minus, IsStopWord(word)};
     }
 
     struct Query {
@@ -269,13 +273,6 @@ private:
         
         Query query; 
         for (const string& word : SplitIntoWords(text)) {
-            if((word[0] == '-') && (word[1] == '-')){
-                throw invalid_argument("наличие более чем одного минуса перед минус словом"s);
-            } else if (word == "-"s) {
-                throw invalid_argument("отсутствие текста после символа «минус» в поисковом запросе"s);
-            } else if (FindSpecSymb(word)) {
-                throw invalid_argument("в словах поискового запроса есть специальные символы"s);
-            }
             const QueryWord query_word = ParseQueryWord(word);
             if (!query_word.is_stop) {
                 if (query_word.is_minus) {
