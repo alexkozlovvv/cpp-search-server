@@ -6,6 +6,7 @@
 using namespace std;
 
 int main() {
+
     SearchServer search_server("and in at"s);
     RequestQueue request_queue(search_server);
     search_server.AddDocument(1, "curly cat curly tail"s, DocumentStatus::ACTUAL, {7, 2, 7});
@@ -25,4 +26,5 @@ int main() {
     request_queue.AddFindRequest("sparrow"s);
     std::cout << "Total empty requests: "s << request_queue.GetNoResultRequests() << std::endl;
     return 0;
+    
 }
